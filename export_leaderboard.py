@@ -16,6 +16,7 @@ from urllib.request import Request, urlopen
 
 API_URL = "https://loris.tools/api/hip3-analytics/leaderboard"
 DEFAULT_OUTPUT = "hip3_leaderboard_labels.csv"
+DEFAULT_TIMEOUT = 30
 
 
 def parse_args() -> argparse.Namespace:
@@ -26,14 +27,35 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--sort-by", default="volume", help="API sort_by parameter.")
     parser.add_argument("--limit", type=int, default=500, help="Number of rows to request.")
     parser.add_argument(
+        "--timeout",
+        type=float,
+        default=DEFAULT_TIMEOUT,
+        help=f"HTTP timeout in seconds. Default: {DEFAULT_TIMEOUT}",
+    )
+    parser.add_argument(
         "--output",
         default=DEFAULT_OUTPUT,
         help=f"CSV output path. Default: {DEFAULT_OUTPUT}",
     )
+    parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Fetch and summarize rows without writing the CSV file.",
+    )
     return parser.parse_args()
 
 
-def fetch_leaderboard(period: str, sort_by: str, limit: int) -> list[dict[str, Any]]:
+def fetch_leaderboard(
+    period: str,
+    sort_by: str,
+    limit: int,
+    timeout: float = DEFAULT_TIMEOUT,
+) -> list[dict[str, Any]]:
+    if limit < 1:
+        raise RuntimeError("--limit must be at least 1")
+    if timeout <= 0:
+        raise RuntimeError("--timeout must be greater than 0")
+
     query = urlencode({"period": period, "sort_by": sort_by, "limit": limit})
     request = Request(
         f"{API_URL}?{query}",
@@ -44,7 +66,7 @@ def fetch_leaderboard(period: str, sort_by: str, limit: int) -> list[dict[str, A
     )
 
     try:
-        with urlopen(request, timeout=30) as response:
+        with urlopen(request, timeout=timeout) as response:
             payload = json.loads(response.read().decode("utf-8"))
     except HTTPError as exc:
         raise RuntimeError(f"API returned HTTP {exc.code}: {exc.reason}") from exc
@@ -68,14 +90,14 @@ def build_rows(entries: list[dict[str, Any]]) -> list[dict[str, str]]:
     )
 
     rows = []
-    for rank, entry in enumerate(sorted_entries, start=1):
+    for entry in sorted_entries:
         address = str(entry.get("address", "")).strip()
         if not address:
             continue
 
         rows.append(
             {
-                "label": f"top #{rank}",
+                "label": f"top #{len(rows) + 1}",
                 "address": address,
             }
         )
@@ -96,14 +118,18 @@ def main() -> int:
     args = parse_args()
 
     try:
-        entries = fetch_leaderboard(args.period, args.sort_by, args.limit)
+        entries = fetch_leaderboard(args.period, args.sort_by, args.limit, args.timeout)
         rows = build_rows(entries)
-        write_csv(rows, Path(args.output))
+        if not args.dry_run:
+            write_csv(rows, Path(args.output))
     except RuntimeError as exc:
         print(f"Error: {exc}", file=sys.stderr)
         return 1
 
-    print(f"Exported {len(rows)} rows to {args.output}")
+    if args.dry_run:
+        print(f"Fetched {len(rows)} rows; dry run did not write {args.output}")
+    else:
+        print(f"Exported {len(rows)} rows to {args.output}")
     return 0
 
 
