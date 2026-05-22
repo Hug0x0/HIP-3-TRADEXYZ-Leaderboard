@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Export HIP-3 leaderboard addresses to a label/address/description CSV."""
+"""Export HIP-3 leaderboard addresses to a label/address CSV."""
 
 from __future__ import annotations
 
@@ -20,7 +20,7 @@ DEFAULT_OUTPUT = "hip3_leaderboard_labels.csv"
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
-        description="Export HIP-3 leaderboard addresses as label,address,description."
+        description="Export HIP-3 leaderboard addresses as label,address."
     )
     parser.add_argument("--period", default="all", help="API period parameter.")
     parser.add_argument("--sort-by", default="volume", help="API sort_by parameter.")
@@ -60,16 +60,6 @@ def fetch_leaderboard(period: str, sort_by: str, limit: int) -> list[dict[str, A
     return [row for row in data if isinstance(row, dict)]
 
 
-def format_number(value: Any) -> str:
-    if not isinstance(value, (int, float)):
-        return "n/a"
-
-    if isinstance(value, float):
-        return f"{value:,.2f}"
-
-    return f"{value:,}"
-
-
 def build_rows(entries: list[dict[str, Any]]) -> list[dict[str, str]]:
     sorted_entries = sorted(
         entries,
@@ -83,19 +73,10 @@ def build_rows(entries: list[dict[str, Any]]) -> list[dict[str, str]]:
         if not address:
             continue
 
-        description = (
-            f"HIP-3 leaderboard rank #{rank} by volume. "
-            f"Volume: {format_number(entry.get('volume'))}; "
-            f"Fees paid: {format_number(entry.get('fees_paid'))}; "
-            f"Deployer fees paid: {format_number(entry.get('deployer_fees_paid'))}; "
-            f"Trade count: {format_number(entry.get('trade_count'))}; "
-            f"Symbols traded: {format_number(entry.get('symbols_traded'))}."
-        )
         rows.append(
             {
                 "label": f"top #{rank}",
                 "address": address,
-                "description": description,
             }
         )
 
@@ -106,7 +87,7 @@ def write_csv(rows: list[dict[str, str]], output_path: Path) -> None:
     output_path.parent.mkdir(parents=True, exist_ok=True)
 
     with output_path.open("w", newline="", encoding="utf-8") as csv_file:
-        writer = csv.DictWriter(csv_file, fieldnames=["label", "address", "description"])
+        writer = csv.DictWriter(csv_file, fieldnames=["label", "address"])
         writer.writeheader()
         writer.writerows(rows)
 

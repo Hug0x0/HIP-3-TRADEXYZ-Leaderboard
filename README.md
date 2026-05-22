@@ -3,9 +3,9 @@
 Export HIP-3 leaderboard addresses from the Loris API to a CSV with this format:
 
 ```csv
-label,address,description
-top #1,0x...,HIP-3 leaderboard rank #1 by volume...
-top #2,0x...,HIP-3 leaderboard rank #2 by volume...
+label,address
+top #1,0x...
+top #2,0x...
 ```
 
 ## Usage
@@ -31,4 +31,3 @@ hip3_leaderboard_labels.csv
 ```bash
 python3 export_leaderboard.py --period all --sort-by volume --limit 500 --output labels.csv
 ```
-
