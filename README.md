@@ -55,6 +55,24 @@ python3 export_leaderboard.py --columns label,address
 python3 export_leaderboard.py --columns label,address,description
 ```
 
+Export only the first N rows after sorting:
+
+```bash
+python3 export_leaderboard.py --top 50
+```
+
+Customize labels:
+
+```bash
+python3 export_leaderboard.py --label-template "TRADE.xyz top #{rank}"
+```
+
+Write JSON as well as CSV:
+
+```bash
+python3 export_leaderboard.py --json
+```
+
 Skip the dated export:
 
 ```bash
@@ -66,6 +84,26 @@ Test the API without writing files:
 ```bash
 python3 export_leaderboard.py --dry-run
 ```
+
+## Validation
+
+By default, the script skips rows where `address` is not a valid EVM address.
+
+To export invalid addresses anyway:
+
+```bash
+python3 export_leaderboard.py --allow-invalid-addresses
+```
+
+## Tests
+
+Run the local test suite:
+
+```bash
+python3 -m unittest -v
+```
+
+GitHub Actions also runs the tests on pushes and pull requests.
 
 ## API Limitation
 
