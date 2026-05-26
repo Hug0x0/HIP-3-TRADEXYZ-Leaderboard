@@ -18,6 +18,7 @@ from urllib.request import Request, urlopen
 
 API_URL = "https://loris.tools/api/hip3-analytics/leaderboard"
 DEFAULT_OUTPUT = "hip3_leaderboard_labels.csv"
+DEFAULT_JSON_OUTPUT = "hip3_leaderboard_labels.json"
 DEFAULT_TIMEOUT = 30
 DEFAULT_EXPORTS_DIR = "exports"
 DEFAULT_COLUMNS = ("label", "address")
@@ -68,6 +69,16 @@ def parse_args() -> argparse.Namespace:
         "--no-dated-export",
         action="store_true",
         help="Only write the latest CSV output and skip the dated export.",
+    )
+    parser.add_argument(
+        "--json-output",
+        default=DEFAULT_JSON_OUTPUT,
+        help=f"JSON output path used with --json. Default: {DEFAULT_JSON_OUTPUT}",
+    )
+    parser.add_argument(
+        "--json",
+        action="store_true",
+        help="Also write exported rows to JSON.",
     )
     parser.add_argument(
         "--columns",
@@ -222,6 +233,15 @@ def write_csv(
         writer.writerows(rows)
 
 
+def write_json(rows: list[dict[str, str]], output_path: Path, columns: list[str]) -> None:
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    payload = [{column: row[column] for column in columns if column in row} for row in rows]
+
+    with output_path.open("w", encoding="utf-8") as json_file:
+        json.dump(payload, json_file, indent=2)
+        json_file.write("\n")
+
+
 def dated_output_path(exports_dir: Path) -> Path:
     date_stamp = datetime.now().strftime("%Y-%m-%d")
     return exports_dir / f"hip3_leaderboard_{date_stamp}.csv"
@@ -249,6 +269,9 @@ def main() -> int:
         if not args.dry_run:
             write_csv(rows, Path(args.output), columns, include_header=not args.no_header)
             output_paths = [args.output]
+            if args.json:
+                write_json(rows, Path(args.json_output), columns)
+                output_paths.append(args.json_output)
             if not args.no_dated_export:
                 dated_path = dated_output_path(Path(args.exports_dir))
                 write_csv(rows, dated_path, columns, include_header=not args.no_header)
