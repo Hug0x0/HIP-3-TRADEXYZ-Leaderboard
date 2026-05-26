@@ -6,6 +6,7 @@ from __future__ import annotations
 import argparse
 import csv
 import json
+import re
 import sys
 from datetime import datetime
 from pathlib import Path
@@ -22,6 +23,7 @@ DEFAULT_EXPORTS_DIR = "exports"
 DEFAULT_COLUMNS = ("label", "address")
 DEFAULT_LABEL_TEMPLATE = "top #{rank}"
 AVAILABLE_COLUMNS = ("label", "address", "description")
+EVM_ADDRESS_PATTERN = re.compile(r"^0x[a-fA-F0-9]{40}$")
 
 
 def parse_args() -> argparse.Namespace:
@@ -40,6 +42,11 @@ def parse_args() -> argparse.Namespace:
         "--label-template",
         default=DEFAULT_LABEL_TEMPLATE,
         help=f"Label template using {{rank}}. Default: {DEFAULT_LABEL_TEMPLATE}",
+    )
+    parser.add_argument(
+        "--allow-invalid-addresses",
+        action="store_true",
+        help="Export rows even when the address is not a valid EVM address.",
     )
     parser.add_argument(
         "--timeout",
@@ -149,10 +156,15 @@ def format_number(value: Any) -> str:
     return f"{value:,}"
 
 
+def is_evm_address(address: str) -> bool:
+    return bool(EVM_ADDRESS_PATTERN.fullmatch(address))
+
+
 def build_rows(
     entries: list[dict[str, Any]],
     top: int | None = None,
     label_template: str = DEFAULT_LABEL_TEMPLATE,
+    allow_invalid_addresses: bool = False,
 ) -> list[dict[str, str]]:
     if top is not None and top < 1:
         raise RuntimeError("--top must be at least 1")
@@ -171,6 +183,9 @@ def build_rows(
     for entry in sorted_entries:
         address = str(entry.get("address", "")).strip()
         if not address:
+            continue
+        if not allow_invalid_addresses and not is_evm_address(address):
+            print(f"Warning: skipped invalid address: {address}", file=sys.stderr)
             continue
 
         rank = len(rows) + 1
@@ -225,7 +240,12 @@ def main() -> int:
                 f"{total_note}",
                 file=sys.stderr,
             )
-        rows = build_rows(entries, top=args.top, label_template=args.label_template)
+        rows = build_rows(
+            entries,
+            top=args.top,
+            label_template=args.label_template,
+            allow_invalid_addresses=args.allow_invalid_addresses,
+        )
         if not args.dry_run:
             write_csv(rows, Path(args.output), columns, include_header=not args.no_header)
             output_paths = [args.output]
