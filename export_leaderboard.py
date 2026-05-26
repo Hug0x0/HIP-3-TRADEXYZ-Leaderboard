@@ -66,7 +66,7 @@ def fetch_leaderboard(
     sort_by: str,
     limit: int,
     timeout: float = DEFAULT_TIMEOUT,
-) -> list[dict[str, Any]]:
+) -> tuple[list[dict[str, Any]], int | None]:
     if limit < 1:
         raise RuntimeError("--limit must be at least 1")
     if timeout <= 0:
@@ -95,7 +95,11 @@ def fetch_leaderboard(
     if not isinstance(data, list):
         raise RuntimeError("API response did not contain a data list")
 
-    return [row for row in data if isinstance(row, dict)]
+    total_traders = payload.get("total_traders")
+    if not isinstance(total_traders, int):
+        total_traders = None
+
+    return [row for row in data if isinstance(row, dict)], total_traders
 
 
 def parse_columns(raw_columns: str) -> list[str]:
@@ -174,7 +178,14 @@ def main() -> int:
 
     try:
         columns = parse_columns(args.columns)
-        entries = fetch_leaderboard(args.period, args.sort_by, args.limit, args.timeout)
+        entries, total_traders = fetch_leaderboard(args.period, args.sort_by, args.limit, args.timeout)
+        if len(entries) < args.limit:
+            total_note = f" Total traders reported by API: {total_traders}." if total_traders else ""
+            print(
+                f"Warning: requested {args.limit} rows, API returned {len(entries)} rows."
+                f"{total_note}",
+                file=sys.stderr,
+            )
         rows = build_rows(entries)
         if not args.dry_run:
             write_csv(rows, Path(args.output), columns, include_header=not args.no_header)
