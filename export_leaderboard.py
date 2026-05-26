@@ -20,6 +20,7 @@ DEFAULT_OUTPUT = "hip3_leaderboard_labels.csv"
 DEFAULT_TIMEOUT = 30
 DEFAULT_EXPORTS_DIR = "exports"
 DEFAULT_COLUMNS = ("label", "address")
+DEFAULT_LABEL_TEMPLATE = "top #{rank}"
 AVAILABLE_COLUMNS = ("label", "address", "description")
 
 
@@ -30,6 +31,16 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--period", default="all", help="API period parameter.")
     parser.add_argument("--sort-by", default="volume", help="API sort_by parameter.")
     parser.add_argument("--limit", type=int, default=500, help="Number of rows to request.")
+    parser.add_argument(
+        "--top",
+        type=int,
+        help="Maximum number of sorted rows to export after fetching.",
+    )
+    parser.add_argument(
+        "--label-template",
+        default=DEFAULT_LABEL_TEMPLATE,
+        help=f"Label template using {{rank}}. Default: {DEFAULT_LABEL_TEMPLATE}",
+    )
     parser.add_argument(
         "--timeout",
         type=float,
@@ -138,12 +149,23 @@ def format_number(value: Any) -> str:
     return f"{value:,}"
 
 
-def build_rows(entries: list[dict[str, Any]]) -> list[dict[str, str]]:
+def build_rows(
+    entries: list[dict[str, Any]],
+    top: int | None = None,
+    label_template: str = DEFAULT_LABEL_TEMPLATE,
+) -> list[dict[str, str]]:
+    if top is not None and top < 1:
+        raise RuntimeError("--top must be at least 1")
+    if "{rank}" not in label_template:
+        raise RuntimeError("--label-template must include {rank}")
+
     sorted_entries = sorted(
         entries,
         key=lambda entry: entry.get("volume") if isinstance(entry.get("volume"), (int, float)) else 0,
         reverse=True,
     )
+    if top is not None:
+        sorted_entries = sorted_entries[:top]
 
     rows = []
     for entry in sorted_entries:
@@ -154,7 +176,7 @@ def build_rows(entries: list[dict[str, Any]]) -> list[dict[str, str]]:
         rank = len(rows) + 1
         rows.append(
             {
-                "label": f"top #{rank}",
+                "label": label_template.format(rank=rank),
                 "address": address,
                 "description": (
                     f"HIP-3 leaderboard rank #{rank} by volume. "
@@ -203,7 +225,7 @@ def main() -> int:
                 f"{total_note}",
                 file=sys.stderr,
             )
-        rows = build_rows(entries)
+        rows = build_rows(entries, top=args.top, label_template=args.label_template)
         if not args.dry_run:
             write_csv(rows, Path(args.output), columns, include_header=not args.no_header)
             output_paths = [args.output]
