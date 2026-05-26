@@ -7,6 +7,7 @@ import argparse
 import csv
 import json
 import sys
+from datetime import datetime
 from pathlib import Path
 from typing import Any
 from urllib.error import HTTPError, URLError
@@ -17,6 +18,7 @@ from urllib.request import Request, urlopen
 API_URL = "https://loris.tools/api/hip3-analytics/leaderboard"
 DEFAULT_OUTPUT = "hip3_leaderboard_labels.csv"
 DEFAULT_TIMEOUT = 30
+DEFAULT_EXPORTS_DIR = "exports"
 DEFAULT_COLUMNS = ("label", "address")
 AVAILABLE_COLUMNS = ("label", "address", "description")
 
@@ -37,7 +39,17 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--output",
         default=DEFAULT_OUTPUT,
-        help=f"CSV output path. Default: {DEFAULT_OUTPUT}",
+        help=f"Latest CSV output path. Default: {DEFAULT_OUTPUT}",
+    )
+    parser.add_argument(
+        "--exports-dir",
+        default=DEFAULT_EXPORTS_DIR,
+        help=f"Directory for dated CSV exports. Default: {DEFAULT_EXPORTS_DIR}",
+    )
+    parser.add_argument(
+        "--no-dated-export",
+        action="store_true",
+        help="Only write the latest CSV output and skip the dated export.",
     )
     parser.add_argument(
         "--columns",
@@ -173,6 +185,11 @@ def write_csv(
         writer.writerows(rows)
 
 
+def dated_output_path(exports_dir: Path) -> Path:
+    date_stamp = datetime.now().strftime("%Y-%m-%d")
+    return exports_dir / f"hip3_leaderboard_{date_stamp}.csv"
+
+
 def main() -> int:
     args = parse_args()
 
@@ -189,6 +206,11 @@ def main() -> int:
         rows = build_rows(entries)
         if not args.dry_run:
             write_csv(rows, Path(args.output), columns, include_header=not args.no_header)
+            output_paths = [args.output]
+            if not args.no_dated_export:
+                dated_path = dated_output_path(Path(args.exports_dir))
+                write_csv(rows, dated_path, columns, include_header=not args.no_header)
+                output_paths.append(str(dated_path))
     except RuntimeError as exc:
         print(f"Error: {exc}", file=sys.stderr)
         return 1
@@ -196,7 +218,7 @@ def main() -> int:
     if args.dry_run:
         print(f"Fetched {len(rows)} rows; dry run did not write {args.output}")
     else:
-        print(f"Exported {len(rows)} rows to {args.output}")
+        print(f"Exported {len(rows)} rows to {', '.join(output_paths)}")
     return 0
 
 

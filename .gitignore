@@ -1,3 +1,4 @@
 __pycache__/
 *.pyc
 hip3_leaderboard_labels.csv
+exports/
